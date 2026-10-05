@@ -1,0 +1,16 @@
+message,label
+"Congratulations you won a lottery prize",scam
+"Click this link to claim your reward",scam
+"Your bank account will be blocked verify now",scam
+"Send your OTP to receive your prize",scam
+"Your KYC has expired click here",scam
+"Urgent verify your account immediately",scam
+"Win a free iPhone click now",scam
+"Send your password to receive reward",scam
+"Your electricity bill is due tomorrow",safe
+"Your order has been delivered",safe
+"Meeting is scheduled tomorrow",safe
+"Please submit your assignment",safe
+"Happy birthday have a great day",safe
+"Your appointment is scheduled at 10 AM",safe
+"College lecture starts at 9 AM",safe

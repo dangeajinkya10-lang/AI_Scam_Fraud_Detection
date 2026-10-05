@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Scan History</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>📋 Scan History</h1>
+
+        <p>Previous Scam Detection Scans</p>
+
+        <h2>Total Scans: {{ scans|length }}</h2>
+
+        <table border="1" cellpadding="10" cellspacing="0">
+
+            <tr>
+                <th>ID</th>
+                <th>Message</th>
+                <th>Prediction</th>
+                <th>Risk</th>
+                <th>Reasons</th>
+                <th>Date</th>
+            </tr>
+
+            {% for scan in scans %}
+
+            <tr>
+                <td>{{ scan.id }}</td>
+
+                <td>{{ scan.message }}</td>
+
+                <td>{{ scan.prediction }}</td>
+
+                <td>{{ scan.risk }}%</td>
+
+                <td>{{ scan.reasons }}</td>
+
+                <td>{{ scan.scan_date }}</td>
+            </tr>
+
+            {% endfor %}
+
+        </table>
+
+        <br><br>
+
+        <a href="/">
+            <button type="button">
+                🏠 Back to Home
+            </button>
+        </a>
+
+    </div>
+
+</body>
+
+</html>

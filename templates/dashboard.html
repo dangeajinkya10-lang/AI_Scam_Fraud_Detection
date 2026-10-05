@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Dashboard</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+</head>
+
+<body>
+
+    <div class="container">
+
+        <h1>📊 Scam Detection Dashboard</h1>
+
+        <p>Monitor your scam detection activity</p>
+
+        <h2>Dashboard</h2>
+
+       <div class="dashboard-cards">
+
+    <div class="card">
+        <h3>📊 Total Scans</h3>
+        <h2>{{ total_scans }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>🚨 Scam Detected</h3>
+        <h2>{{ scam_detected }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>✅ Safe Messages</h3>
+        <h2>{{ safe_messages }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>🔴 High Risk</h3>
+        <h2>{{ high_risk }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>🟠 Medium Risk</h3>
+        <h2>{{ medium_risk }}</h2>
+    </div>
+
+    <div class="card">
+        <h3>🟢 Low Risk</h3>
+        <h2>{{ low_risk }}</h2>
+    </div>
+
+</div>
+
+        <h2>🕒 Recent Scans</h2>
+
+<table border="1" cellpadding="10" cellspacing="0">
+
+    <tr>
+        <th>ID</th>
+        <th>Message</th>
+        <th>Prediction</th>
+        <th>Risk</th>
+        <th>Date</th>
+    </tr>
+
+    {% for scan in recent_scans %}
+
+    <tr>
+        <td>{{ scan.id }}</td>
+        <td>{{ scan.message }}</td>
+        <td>
+    {% if scan.prediction == "scam" %}
+        <span class="scam-badge">🚨 SCAM</span>
+    {% else %}
+        <span class="safe-badge">✅ SAFE</span>
+    {% endif %}
+</td>
+        <td>{{ scan.risk }}%</td>
+        <td>{{ scan.scan_date }}</td>
+    </tr>
+
+    {% endfor %}
+
+</table>
+
+        <br>
+
+        <a href="/">
+            <button type="button">
+                🏠 Back to Home
+            </button>
+        </a>
+
+    </div>
+
+</body>
+
+</html>

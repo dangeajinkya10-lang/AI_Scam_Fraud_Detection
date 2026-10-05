@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport"
+          content="width=device-width, initial-scale=1.0">
+
+    <title>AI Scam & Fraud Detection</title>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
+
+</head>
+
+
+<body>
+
+    <div class="container">
+
+        <!-- Header -->
+
+        <h1>🛡️ AI Scam & Fraud Detection</h1>
+
+        <p class="subtitle">
+            Protect yourself from suspicious messages using Artificial Intelligence
+        </p>
+
+
+        <!-- Main Scanner Card -->
+
+        <div class="scanner-card">
+
+            <div class="scanner-icon">
+                🔍
+            </div>
+
+            <h2>Scan a Message</h2>
+
+            <p>
+                Paste a suspicious SMS, WhatsApp message,
+                email or notification below.
+            </p>
+
+
+            <form action="/scan" method="POST">
+
+                <textarea
+                    name="message"
+                    placeholder="Paste your suspicious message here..."
+                    rows="8"
+                    required></textarea>
+
+
+                <button type="submit" class="scan-button">
+                    🔍 Scan Message
+                </button>
+
+            </form>
+
+        </div>
+
+
+        <!-- Quick Features -->
+
+        <div class="feature-cards">
+
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <h3>AI Detection</h3>
+                <p>
+                    Machine Learning analyzes the message
+                    for suspicious patterns.
+                </p>
+            </div>
+
+
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <h3>Risk Analysis</h3>
+                <p>
+                    Get a risk score and identify
+                    potential scam messages.
+                </p>
+            </div>
+
+
+            <div class="feature-card">
+                <div class="feature-icon">🔐</div>
+                <h3>Stay Protected</h3>
+                <p>
+                    Receive safety recommendations
+                    to avoid online fraud.
+                </p>
+            </div>
+
+        </div>
+
+
+        <!-- Navigation -->
+
+        <div class="navigation">
+
+            <a href="/dashboard">
+                <button type="button">
+                    📊 Dashboard
+                </button>
+            </a>
+
+
+            <a href="/history">
+                <button type="button">
+                    📋 Scan History
+                </button>
+            </a>
+
+        </div>
+
+
+        <!-- Footer -->
+
+        <p class="footer">
+            🔒 AI-powered Cyber Safety & Awareness System
+        </p>
+
+    </div>
+
+</body>
+
+</html>
