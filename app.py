@@ -1,10 +1,15 @@
-import os
 import sqlite3
 import joblib
 
 from pathlib import Path
-from flask import Flask, render_template, request, redirect, url_for
-
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    jsonify
+)
 
 # ==================================================
 # 1. FLASK APPLICATION
@@ -24,22 +29,17 @@ DATABASE_DIR.mkdir(parents=True, exist_ok=True)
 # ==================================================
 
 def load_model_file(filename):
-    """
-    Load a saved machine learning model.
-    Return None if the file is missing or cannot be loaded.
-    """
-
     file_path = BASE_DIR / filename
 
     if not file_path.exists():
-        print(f"WARNING: {filename} not found.")
+        app.logger.warning("%s not found.", filename)
         return None
 
     try:
         return joblib.load(file_path)
 
-    except Exception as error:
-        print(f"ERROR loading {filename}: {error}")
+    except Exception:
+        app.logger.exception("Error loading %s", filename)
         return None
 
 
@@ -47,7 +47,9 @@ model = load_model_file("model.pkl")
 vectorizer = load_model_file("vectorizer.pkl")
 
 category_model = load_model_file("category_model.pkl")
-category_vectorizer = load_model_file("category_vectorizer.pkl")
+category_vectorizer = load_model_file(
+    "category_vectorizer.pkl"
+)
 
 
 # ==================================================
@@ -55,11 +57,8 @@ category_vectorizer = load_model_file("category_vectorizer.pkl")
 # ==================================================
 
 def get_db_connection():
-
     connection = sqlite3.connect(str(DATABASE_PATH))
-
     connection.row_factory = sqlite3.Row
-
     return connection
 
 
@@ -68,32 +67,20 @@ def get_db_connection():
 # ==================================================
 
 def init_db():
-
     connection = get_db_connection()
 
     try:
-
         connection.execute("""
             CREATE TABLE IF NOT EXISTS scans (
-
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-
                 message TEXT NOT NULL,
-
                 prediction TEXT NOT NULL,
-
                 risk REAL NOT NULL,
-
                 reasons TEXT,
-
                 category TEXT,
-
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-
             )
         """)
-
-        # Support databases created by earlier app versions.
 
         columns = {
             row["name"]
@@ -103,24 +90,23 @@ def init_db():
         }
 
         if "category" not in columns:
-
             connection.execute("""
-                ALTER TABLE scans
-                ADD COLUMN category TEXT
+                ALTER TABLE scans ADD COLUMN category TEXT
             """)
 
         if "created_at" not in columns:
-
             connection.execute("""
-                ALTER TABLE scans
-                ADD COLUMN created_at TIMESTAMP
+                ALTER TABLE scans ADD COLUMN created_at TIMESTAMP
             """)
 
         connection.commit()
 
     finally:
-
         connection.close()
+
+
+# Initialize database for both the website and API.
+init_db()
 
 
 # ==================================================
@@ -128,14 +114,16 @@ def init_db():
 # ==================================================
 
 def save_scan(message, prediction, risk, reasons, category):
-
     connection = get_db_connection()
 
     try:
+        if isinstance(reasons, list):
+            reasons_text = ", ".join(reasons)
+        else:
+            reasons_text = str(reasons)
 
         connection.execute("""
-            INSERT INTO scans
-            (
+            INSERT INTO scans (
                 message,
                 prediction,
                 risk,
@@ -147,15 +135,13 @@ def save_scan(message, prediction, risk, reasons, category):
             message,
             prediction,
             float(risk),
-            ", ".join(reasons) if isinstance(reasons, list)
-            else str(reasons),
+            reasons_text,
             category
         ))
 
         connection.commit()
 
     finally:
-
         connection.close()
 
 
@@ -164,18 +150,18 @@ def save_scan(message, prediction, risk, reasons, category):
 # ==================================================
 
 def detect_category(message):
-
     text = message.lower()
 
-    # Use the trained category model when available.
-
-    if category_model is not None and category_vectorizer is not None:
-
+    if (
+        category_model is not None
+        and category_vectorizer is not None
+    ):
         try:
-
             features = category_vectorizer.transform([message])
 
-            category_prediction = category_model.predict(features)[0]
+            category_prediction = (
+                category_model.predict(features)[0]
+            )
 
             category_prediction = str(
                 category_prediction
@@ -187,17 +173,14 @@ def detect_category(message):
                 "none",
                 ""
             ):
-
                 return category_prediction
 
-        except Exception as error:
-
-            print("Category prediction warning:", error)
-
-    # Keyword-based fallback if category model is unavailable.
+        except Exception:
+            app.logger.exception(
+                "Category prediction warning"
+            )
 
     category_keywords = {
-
         "OTP Scam": [
             "otp",
             "one time password",
@@ -250,28 +233,24 @@ def detect_category(message):
             "http://",
             "https://"
         ]
-
     }
 
     for category_name, keywords in category_keywords.items():
-
         if any(keyword in text for keyword in keywords):
-
             return category_name
 
     return "General Message"
 
 
-# ==================================================
-# 7. PREDICT MESSAGE RISK
-# ==================================================
+def get_category(message):
+    return detect_category(message)
 
-# ==========================================
-# PREDICT MESSAGE - CORRECTED VERSION
-# ==========================================
+
+# ==================================================
+# 7. PREDICT MESSAGE
+# ==================================================
 
 def predict_message(message):
-
     if model is None or vectorizer is None:
         raise RuntimeError(
             "Model files missing. Check model.pkl and vectorizer.pkl."
@@ -279,16 +258,13 @@ def predict_message(message):
 
     features = vectorizer.transform([message])
 
-    # Get prediction from trained model
     predicted_label = str(
         model.predict(features)[0]
     ).strip().lower()
 
-    # Get scam probability
     risk = 0.0
 
     if hasattr(model, "predict_proba"):
-
         probabilities = model.predict_proba(features)[0]
 
         classes = [
@@ -306,17 +282,17 @@ def predict_message(message):
         ]
 
         scam_indices = [
-            i for i, label in enumerate(classes)
+            index
+            for index, label in enumerate(classes)
             if label in scam_labels
         ]
 
         if scam_indices:
             risk = max(
-                float(probabilities[i]) * 100
-                for i in scam_indices
+                float(probabilities[index]) * 100
+                for index in scam_indices
             )
 
-    # Normalize prediction label
     scam_labels = [
         "scam",
         "fraud",
@@ -346,37 +322,24 @@ def predict_message(message):
 
     risk = round(max(0.0, min(risk, 100.0)), 2)
 
-    print("\n--- MODEL DEBUG ---")
-    print("Message:", message)
-    print("Model classes:", model.classes_)
-    print("Predicted label:", predicted_label)
-    print("Scam probability:", risk)
-    print("Final model result:", result)
-    print("-------------------\n")
+    app.logger.info(
+        "ML prediction=%s, risk=%s",
+        result,
+        risk
+    )
 
     return result, risk
 
-# ==================================================
-# 8. GET CATEGORY FOR A MESSAGE
-# ==================================================
-
-def get_category(message):
-
-    return detect_category(message)
-
 
 # ==================================================
-# 9. FIND SCAM REASONS
+# 8. FIND SCAM REASONS
 # ==================================================
 
 def find_scam_reasons(message, result=None, category=None):
-
     text = message.lower()
-
     reasons = []
 
     keyword_reasons = {
-
         "OTP": [
             "otp",
             "one time password",
@@ -437,25 +400,16 @@ def find_scam_reasons(message, result=None, category=None):
             "pay now",
             "claim reward"
         ]
-
     }
 
     for reason, keywords in keyword_reasons.items():
-
         if any(keyword in text for keyword in keywords):
-
             reasons.append(reason)
 
     if category and category != "General Message":
-
-        category_reason = f"Possible category: {category}"
-
-        if category_reason not in reasons:
-
-            reasons.append(category_reason)
+        reasons.append(f"Possible category: {category}")
 
     if not reasons:
-
         reasons.append(
             "No common scam warning keywords were identified."
         )
@@ -464,49 +418,199 @@ def find_scam_reasons(message, result=None, category=None):
 
 
 # ==================================================
-# 10. DETERMINE RISK LEVEL
+# 9. DETERMINE RISK LEVEL
 # ==================================================
 
 def get_risk_level(risk):
-
     if risk >= 70:
-
         return "High"
 
     elif risk >= 40:
-
         return "Medium"
 
-    else:
-
-        return "Low"
+    return "Low"
 
 
 # ==================================================
-# 11. HOME PAGE
+# 10. SHARED SCANNING LOGIC
+# ==================================================
+
+def analyze_message(message):
+    if model is None or vectorizer is None:
+        raise RuntimeError(
+            "Machine learning model files are unavailable."
+        )
+
+    predicted_label, model_risk = predict_message(message)
+
+    category = get_category(message)
+    risk = model_risk
+
+    scam_keywords = [
+        "lottery",
+        "won a prize",
+        "claim your reward",
+        "claim your prize",
+        "lucky draw",
+        "you are winner",
+        "congratulations winner",
+        "share your otp",
+        "send your otp",
+        "account will be blocked",
+        "update kyc",
+        "upi pin"
+    ]
+
+    message_lower = message.lower()
+    category_lower = category.lower()
+
+    scam_category = any(
+        name in category_lower
+        for name in [
+            "lottery",
+            "banking scam",
+            "otp scam",
+            "kyc scam",
+            "prize scam",
+            "credential scam",
+            "phishing"
+        ]
+    )
+
+    scam_keyword_found = any(
+        keyword in message_lower
+        for keyword in scam_keywords
+    )
+
+    if risk >= 70 or (
+        scam_category and scam_keyword_found
+    ):
+        result = "Scam"
+
+    elif risk >= 40 or scam_keyword_found:
+        result = "Suspicious Message"
+
+    elif predicted_label == "Likely Safe":
+        result = "Likely Safe"
+
+    elif predicted_label == "Scam":
+        result = "Scam"
+
+    else:
+        result = "Suspicious Message"
+
+    risk_level = get_risk_level(risk)
+
+    if result == "Scam" and risk_level == "Low":
+        risk_level = "High"
+
+    reasons = find_scam_reasons(
+        message,
+        result,
+        category
+    )
+
+    tips = [
+        "Never share your OTP, PIN, password, or banking details.",
+        "Avoid opening suspicious links.",
+        "Verify the sender using official contact details.",
+        "Do not send money to unknown people.",
+        "Contact your bank through its official website or number if needed."
+    ]
+
+    return {
+        "message": message,
+        "result": result,
+        "risk": risk,
+        "risk_level": risk_level,
+        "category": category,
+        "reasons": reasons,
+        "tips": tips
+    }
+
+
+# ==================================================
+# 11. ANDROID APP API
+# ==================================================
+
+@app.route("/api/scan", methods=["POST"])
+def api_scan():
+    data = request.get_json(silent=True)
+
+    if not isinstance(data, dict):
+        return jsonify({
+            "success": False,
+            "error": "Please send a valid JSON request."
+        }), 400
+
+    message = data.get("message", "")
+
+    if not isinstance(message, str):
+        return jsonify({
+            "success": False,
+            "error": "Message must be text."
+        }), 400
+
+    message = message.strip()
+
+    if not message:
+        return jsonify({
+            "success": False,
+            "error": "Please enter a message."
+        }), 400
+
+    if len(message) > 10000:
+        return jsonify({
+            "success": False,
+            "error": "Message is too long. Maximum 10000 characters."
+        }), 400
+
+    try:
+        analysis = analyze_message(message)
+
+        save_scan(
+            analysis["message"],
+            analysis["result"],
+            analysis["risk"],
+            analysis["reasons"],
+            analysis["category"]
+        )
+
+        return jsonify({
+            "success": True,
+            **analysis
+        }), 200
+
+    except Exception:
+        app.logger.exception("Android API scan failed")
+
+        return jsonify({
+            "success": False,
+            "error": "Scanning failed. Please try again."
+        }), 500
+
+
+# ==================================================
+# 12. HOME PAGE
 # ==================================================
 
 @app.route("/")
 def home():
-
     return render_template("index.html")
 
 
 # ==================================================
-# 12. SCAN MESSAGE
+# 13. WEBSITE SCAN
 # ==================================================
 
 @app.route("/scan", methods=["GET", "POST"])
 def scan():
-
     if request.method == "GET":
-
         return redirect(url_for("home"))
 
     message = request.form.get("message", "").strip()
 
     if not message:
-
         return render_template(
             "result.html",
             message="",
@@ -517,151 +621,51 @@ def scan():
             risk_level="Low",
             category="Unknown",
             reasons=["Please enter a message to scan."],
-            tips=[
-                "Enter a message before scanning."
-            ]
+            tips=["Enter a message before scanning."]
         )
 
     try:
-
-        # Step 1: ML prediction
-
-        predicted_label, model_risk = predict_message(message)
-
-        # Step 2: Detect message category
-
-        category = get_category(message)
-
-        # Step 3: Calculate final risk
-
-        risk = model_risk
-
-        # Step 4: Determine final result
-
-        scam_keywords = [
-            "lottery",
-            "won a prize",
-            "claim your reward",
-            "claim your prize",
-            "lucky draw",
-            "you are winner",
-            "congratulations winner",
-            "share your otp",
-            "send your otp",
-            "account will be blocked",
-            "update kyc",
-            "upi pin"
-        ]
-
-        message_lower = message.lower()
-
-        category_lower = category.lower()
-
-        scam_category = any(
-            name in category_lower
-            for name in [
-                "lottery",
-                "banking scam",
-                "otp scam",
-                "kyc scam",
-                "prize scam",
-                "credential scam",
-                "phishing"
-            ]
-        )
-
-        scam_keyword_found = any(
-            keyword in message_lower
-            for keyword in scam_keywords
-        )
-
-        if risk >= 70 or (
-            scam_category and scam_keyword_found
-        ):
-            result = "Scam"
-
-        elif risk >= 40 or scam_keyword_found:
-            result = "Suspicious Message"
-
-        else:
-            result = "Likely Safe"
-
-        # Step 5: Determine risk level
-
-        risk_level = get_risk_level(risk)
-
-        if result == "Scam" and risk_level == "Low":
-            risk_level = "High"
-
-        # Step 6: Find warning reasons
-
-        reasons = find_scam_reasons(
-            message,
-            result,
-            category
-        )
-
-        # Step 7: Safety tips
-
-        tips = [
-            "Never share your OTP, PIN, password, or banking details.",
-            "Avoid opening suspicious links.",
-            "Verify the sender using official contact details.",
-            "Do not send money to unknown people.",
-            "Contact your bank through its official website or number if needed."
-        ]
-
-        # Step 8: Save scan in database
+        analysis = analyze_message(message)
 
         save_scan(
-            message,
-            result,
-            risk,
-            reasons,
-            category
+            analysis["message"],
+            analysis["result"],
+            analysis["risk"],
+            analysis["reasons"],
+            analysis["category"]
         )
-        print("MESSAGE:", message)
-        print("CATEGORY:", category)
-        print("RISK:", risk)
-        print("FINAL RESULT:", result)
-        # Step 9: Show result page
 
         return render_template(
             "result.html",
-            message=message,
-            result=result,
-            prediction=result,
-            risk=risk,
-            risk_score=risk,
-            risk_level=risk_level,
-            category=category,
-            reasons=reasons,
-            tips=tips
+            message=analysis["message"],
+            result=analysis["result"],
+            prediction=analysis["result"],
+            risk=analysis["risk"],
+            risk_score=analysis["risk"],
+            risk_level=analysis["risk_level"],
+            category=analysis["category"],
+            reasons=analysis["reasons"],
+            tips=analysis["tips"]
         )
 
-    except Exception as error:
-
-        app.logger.exception(
-            "Message scanning failed"
-        )
+    except Exception:
+        app.logger.exception("Website scanning failed")
 
         return (
             "Message scanning failed. "
-            "Please check the terminal for the error details."
+            "Please check the application logs."
         ), 500
 
 
 # ==================================================
-# 13. SCAN HISTORY
+# 14. SCAN HISTORY
 # ==================================================
 
 @app.route("/history")
 def history():
-
     connection = get_db_connection()
 
     try:
-
         scans = connection.execute("""
             SELECT *
             FROM scans
@@ -675,21 +679,18 @@ def history():
         )
 
     finally:
-
         connection.close()
 
 
 # ==================================================
-# 14. DASHBOARD
+# 15. DASHBOARD
 # ==================================================
 
 @app.route("/dashboard")
 def dashboard():
-
     connection = get_db_connection()
 
     try:
-
         total_scans = connection.execute("""
             SELECT COUNT(*) AS total
             FROM scans
@@ -751,20 +752,31 @@ def dashboard():
         )
 
     finally:
-
         connection.close()
 
 
 # ==================================================
-# 15. APPLICATION START
+# 16. HEALTH CHECK
+# ==================================================
+
+@app.route("/api/health", methods=["GET"])
+def api_health():
+    return jsonify({
+        "success": True,
+        "status": "online",
+        "service": "Scam Detection API",
+        "model_loaded": model is not None,
+        "vectorizer_loaded": vectorizer is not None
+    }), 200
+
+
+# ==================================================
+# 17. START APPLICATION
 # ==================================================
 
 if __name__ == "__main__":
-
-    init_db()
-
     app.run(
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=5000,
         debug=False
     )
